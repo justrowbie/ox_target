@@ -9,7 +9,7 @@ name 'ox_target'
 author 'Overextended'
 version '1.17.2'
 repository 'https://github.com/overextended/ox_target'
-description ''
+description 'Additional box on stream'
 
 -- Manifest
 ui_page 'web/index.html'
