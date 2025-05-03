@@ -16,7 +16,7 @@ export function createOptions(type, data, id, zoneId) {
 
   const option = document.createElement("div");
   const iconElement = `<i class="fa-fw ${data.icon} option-icon" ${
-    data.iconColor ? `style = color:${data.iconColor} !important` : null
+    data.iconColor ? `style = color:${data.iconColor} !important` : '#f8f9fa'
   }"></i>`;
 
   option.innerHTML = `${iconElement}<p class="option-label">${data.label}</p>`;
