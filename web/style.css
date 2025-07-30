@@ -1,8 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&display=swap");
-
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
 :root {
-  --color-default: #cfd2da;
-  --color-hover: white;
+  --themeColor: #22B8CF;
+  --themeColor80: #22B8CFcc;
+  --lightColor80: #3BC9DBcc;
+  --darkColor80: #101113cc;
+  --textColor: #f8f9fa;
 }
 
 body {
@@ -23,60 +25,72 @@ p {
 }
 
 #eye {
+  content: "\F33E";
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-size: 22pt;
-  fill: black;
+  font-size: 1.5vh;
+  fill: var(--themeColor80);
 }
 
 .eye-hover {
-  fill: var(--color-default);
+  fill: var(--lightColor80);
 }
 
 #options-wrapper {
   position: absolute;
-  top: calc(48.4%);
-  left: calc(50% + 18pt);
+  top: calc(48%);
+  left: calc(51%);
 }
 
 .option-container {
-  color: var(--color-default);
+  color: var(--textColor);
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
-  font-family: "Nunito";
-  background: linear-gradient(
-    90deg,
-    rgba(20, 20, 20, 0.7) 0%,
-    rgba(20, 20, 20, 0.6) 66%,
-    rgba(47, 48, 53, 0) 100%
-  );
-  font-size: 11pt;
-  line-height: 22pt;
+  font-family: "Roboto";
+  background: radial-gradient(circle, var(--darkColor80) 0%, var(--darkColor80) 100%);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 5px;
   vertical-align: middle;
-  margin: 2pt;
+  margin: 5px;
   transition: 300ms;
   transform-origin: left top;
-  scale: 1;
-  height: 22pt;
-  width: 150pt;
+  text-transform: capitalize;
+  height: 20px;
+  width: 100%;
+  max-width: 250px;
+  position: relative;
+  overflow: hidden;
   top: 0;
 }
 
 .option-container:hover {
-  background: linear-gradient(
-    90deg,
-    rgba(30, 30, 30, 0.7) 0%,
-    rgba(30, 30, 30, 0.6) 66%,
-    rgba(57, 58, 63, 0) 100%
-  );
-  transform-origin: left top;
-  color: var(--color-hover);
-  margin-left: 4pt;
+  color: var(--textColor);
+  background: var(--themeColor80);
+  box-shadow: 0px 0px 10px 0px var(--lightColor80);
 }
+
+.option-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(120deg, #f8f9facc 0%, #f8f9facc 50%, #f8f9facc 100%);
+  transform: skewX(-25deg);
+  transition: transform 1.2s ease;
+}
+
+.option-container:hover::before {
+  left: 150%;
+  transition: left 1.22s ease;
+}
+
 
 .option-icon {
   font-size: 12pt;
@@ -84,8 +98,26 @@ p {
   width: 14pt;
   margin: 5pt;
   color: var(--color-default);
+  
 }
 
 .option-label {
   font-weight: 500;
+  color: #f8f9fa;
+}
+
+@keyframes glow {
+  0% {
+    filter: drop-shadow(0 0 5px #1098AD) brightness(1);
+  }
+  50% {
+    filter: drop-shadow(0 0 20px #f8f9fa) brightness(2.5);
+  }
+  100% {
+    filter: drop-shadow(0 0 5px #22B8CF) brightness(1);
+  }
+}
+
+#eyeSvg {
+  animation: glow 1.5s infinite;
 }
