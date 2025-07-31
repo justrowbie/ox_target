@@ -1,10 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
 :root {
-  --themeColor: #22B8CF;
-  --themeColor80: #22B8CFcc;
-  --lightColor80: #3BC9DBcc;
-  --darkColor80: #101113cc;
-  --textColor: #f8f9fa;
+  --themeColor: #22b8cf;
+  --darkColor: #5c5f66;
+  --textColor: #F8F9FA;
 }
 
 body {
@@ -31,11 +29,11 @@ p {
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 1.5vh;
-  fill: var(--themeColor80);
+  fill: rgba(var(--themeColor), 0.2);
 }
 
 .eye-hover {
-  fill: var(--lightColor80);
+  fill: rgba(var(--textColor), 0.2);
 }
 
 #options-wrapper {
@@ -45,13 +43,13 @@ p {
 }
 
 .option-container {
-  color: var(--textColor);
+  color: rgba(var(--textColor), 0.2);
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
   align-items: center;
   font-family: "Roboto";
-  background: radial-gradient(circle, var(--darkColor80) 0%, var(--darkColor80) 100%);
+  background: radial-gradient(circle, var(--darkColor) 0%, var(--darkColor) 100%);
   font-size: 12px;
   font-weight: 500;
   padding: 5px;
@@ -70,8 +68,8 @@ p {
 
 .option-container:hover {
   color: var(--textColor);
-  background: var(--themeColor80);
-  box-shadow: 0px 0px 10px 0px var(--lightColor80);
+  background: rgba(var(--themeColor), 0.2);
+  box-shadow: 0px 0px 10px 0px rgba(var(--lightColor), 0.2);
 }
 
 .option-container::before {
@@ -81,7 +79,7 @@ p {
   left: -150%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(120deg, #f8f9facc 0%, #f8f9facc 50%, #f8f9facc 100%);
+  background: linear-gradient(120deg, var(--textColor) 0%, var(--textColor) 50%, var(--textColor) 100%);
   transform: skewX(-25deg);
   transition: transform 1.2s ease;
 }
@@ -97,24 +95,24 @@ p {
   line-height: 22pt;
   width: 14pt;
   margin: 5pt;
-  color: var(--color-default);
+  color: var(--textColor);
   
 }
 
 .option-label {
   font-weight: 500;
-  color: #f8f9fa;
+  color: rgba(var(--textColor), 0.2);
 }
 
 @keyframes glow {
   0% {
-    filter: drop-shadow(0 0 5px #1098AD) brightness(1);
+    filter: drop-shadow(0 0 5px rgba(var(--themeColor), 0.2)) brightness(1);
   }
   50% {
-    filter: drop-shadow(0 0 20px #f8f9fa) brightness(2.5);
+    filter: drop-shadow(0 0 20px rgba(var(--textColor), 0.2)) brightness(2.5);
   }
   100% {
-    filter: drop-shadow(0 0 5px #22B8CF) brightness(1);
+    filter: drop-shadow(0 0 5px rgba(var(--themeColor), 0.2)) brightness(1);
   }
 }
 
