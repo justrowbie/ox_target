@@ -228,6 +228,23 @@ function api.removeGlobalPlayer(options)
 end
 
 ---@type table<number, OxTargetOption[]>
+local selfTarget = {}
+
+---@param options OxTargetOption | OxTargetOption[]
+function api.addSelfTarget(options)
+    addTarget(selfTarget, options, GetInvokingResource())
+end
+
+---@param options string | string[]
+function api.removeSelfTarget(options)
+    removeTarget(selfTarget, options, GetInvokingResource())
+end
+
+rawset(api, 'getSelfTargetOptions', function()
+    return selfTarget
+end)
+
+---@type table<number, OxTargetOption[]>
 local models = {}
 
 ---@param arr (number | string) | (number | string)[]
@@ -438,6 +455,7 @@ function options_mt:wipe()
     self.model = nil
     self.entity = nil
     self.localEntity = nil
+    self.selfTarget = nil
 
     if self.__global[1]?.name == 'builtin:goback' then
         table.remove(self.__global, 1)
@@ -469,6 +487,12 @@ function options_mt:set(entity, _type, model)
     if self.model then options_mt.size += 1 end
     if self.entity then options_mt.size += 1 end
     if self.localEntity then options_mt.size += 1 end
+end
+
+function options_mt:setSelf()
+    self:wipe()
+    self.selfTarget = selfTarget
+    options_mt.size += 1
 end
 
 ---@type OxTargetOption[]
@@ -523,6 +547,111 @@ end
 
 function api.isActive()
     return state.isActive()
+end
+
+---Check if an entity has any targets associated with it
+---@param entity number
+---@param entityType number
+---@param model number
+---@return boolean
+function api.entityHasTargets(entity, entityType, model)
+    if not entity or entity == 0 then return false end
+
+    local globalTarget = entityType == 1 and (IsPedAPlayer(entity) and players or peds) or entityType == 2 and vehicles or objects
+    if globalTarget and #globalTarget > 0 then return true end
+
+    if model and models[model] and #models[model] > 0 then return true end
+
+    local netId = NetworkGetEntityIsNetworked(entity) and NetworkGetNetworkIdFromEntity(entity)
+    if netId and entities[netId] and #entities[netId] > 0 then return true end
+
+    if localEntities[entity] and #localEntities[entity] > 0 then return true end
+
+    return false
+end
+
+---Check if an entity has specific targets (model, network, or local entity)
+---Excludes global type targets (all vehicles, all objects, etc.) - used for outline drawing
+---@param entity number
+---@param model number
+---@return boolean
+function api.entityHasSpecificTargets(entity, model)
+    if not entity or entity == 0 then return false end
+
+    if model and models[model] and #models[model] > 0 then return true end
+
+    local netId = NetworkGetEntityIsNetworked(entity) and NetworkGetNetworkIdFromEntity(entity)
+    if netId and entities[netId] and #entities[netId] > 0 then return true end
+
+    if localEntities[entity] and #localEntities[entity] > 0 then return true end
+
+    return false
+end
+
+function api.getEntityTargetDistance(entity, entityType, model)
+    if not entity or entity == 0 then return 7 end
+
+    local minDistance = 7
+
+    local function checkOptions(opts)
+        if not opts then return end
+        for i = 1, #opts do
+            local dist = opts[i].distance or 7
+            if dist < minDistance then minDistance = dist end
+        end
+    end
+
+    local globalTarget = entityType == 1 and (IsPedAPlayer(entity) and players or peds) or entityType == 2 and vehicles or objects
+    checkOptions(globalTarget)
+
+    if model and models[model] then
+        checkOptions(models[model])
+    end
+
+    local netId = NetworkGetEntityIsNetworked(entity) and NetworkGetNetworkIdFromEntity(entity)
+    if netId and entities[netId] then
+        checkOptions(entities[netId])
+    end
+
+    if localEntities[entity] then
+        checkOptions(localEntities[entity])
+    end
+
+    return minDistance
+end
+
+---Get the max interaction distance for specific entity targets only (excludes global type targets)
+---Used for outline distance calculation
+---@param entity number
+---@param model number
+---@return number
+function api.getEntitySpecificTargetDistance(entity, model)
+    if not entity or entity == 0 then return 0 end
+
+    local maxDistance = 0
+
+    local function checkOptions(opts)
+        if not opts then return end
+        for i = 1, #opts do
+            local dist = opts[i].distance or 7
+            if dist > maxDistance then maxDistance = dist end
+        end
+    end
+
+    if model and models[model] then
+        checkOptions(models[model])
+    end
+
+    local netId = NetworkGetEntityIsNetworked(entity) and NetworkGetNetworkIdFromEntity(entity)
+    if netId and entities[netId] then
+        checkOptions(entities[netId])
+    end
+
+    if localEntities[entity] then
+        checkOptions(localEntities[entity])
+    end
+
+    return maxDistance
 end
 
 return api

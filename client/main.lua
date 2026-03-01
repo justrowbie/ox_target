@@ -4,11 +4,13 @@ lib.locale()
 
 local utils = require 'client.utils'
 local state = require 'client.state'
-local options = require 'client.api'.getTargetOptions()
+local api = require 'client.api'
+local options = api.getTargetOptions()
 
 require 'client.debug'
 require 'client.defaults'
 require 'client.compat.qtarget'
+require 'client.compat.qb-target'
 
 local SendNuiMessage = SendNuiMessage
 local GetEntityCoords = GetEntityCoords
@@ -30,9 +32,24 @@ local nearbyZones
 
 -- Toggle ox_target, instead of holding the hotkey
 local toggleHotkey = GetConvarInt('ox_target:toggleHotkey', 0) == 1
+local centerCursor = GetConvarInt('ox_target:centerCursor', 1) == 1
+local targetingStartTime = 0
+local lastStateChange = 0
+local STATE_COOLDOWN = 300
 local mouseButton = GetConvarInt('ox_target:leftClick', 1) == 1 and 24 or 25
 local debug = GetConvarInt('ox_target:debug', 0) == 1
+local drawOutline = GetConvarInt('ox_target:drawOutline', 1) == 1
+local outlineDistance = GetConvarInt('ox_target:outlineDistance', 5)
+local outlineUseTargetDistance = GetConvarInt('ox_target:outlineUseTargetDistance', 1) == 1
+local closeOnSelect = GetConvarInt('ox_target:closeOnSelect', 1) == 1
+local outlineColor = {201, 201, 201, 255}
+local outlineColorStr = GetConvar('ox_target:outlineColor', '201, 201, 201, 255')
+for i, v in ipairs({string.strsplit(',', outlineColorStr)}) do
+    outlineColor[i] = tonumber(v) or 255
+end
 local vec0 = vec3(0, 0, 0)
+local SELF_TARGET_ID = -2
+local selfTargetOptions = api.getSelfTargetOptions()
 
 ---@param option OxTargetOption
 ---@param distance number
@@ -124,13 +141,26 @@ local function shouldHide(option, distance, endCoords, entityHit, entityType, en
 end
 
 local function startTargeting()
+    local now = GetGameTimer()
+    if now - lastStateChange < STATE_COOLDOWN then return end
     if state.isDisabled() or state.isActive() or IsNuiFocused() or IsPauseMenuActive() then return end
 
+    lastStateChange = now
     state.setActive(true)
 
+    if centerCursor then
+        SetCursorLocation(0.5, 0.5)
+    end
+
     local flag = 511
-    local hit, entityHit, endCoords, distance, lastEntity, entityType, entityModel, hasTarget, zonesChanged
+    local hit, entityHit, endCoords, distance, entityType, entityModel, hasTarget, zonesChanged
+    local lastEntity = -1
     local zones = {}
+    local optionsLocked = false
+    local lockTime = 0
+    local lockedMaxDistance = 7
+    local lockedTargetCoords = nil
+    local outlinedEntity = nil
 
     CreateThread(function()
         local dict, texture = utils.getTexture()
@@ -152,16 +182,47 @@ local function startTargeting()
             DisableControlAction(0, 140, true)
             DisableControlAction(0, 141, true)
             DisableControlAction(0, 142, true)
+            DisableControlAction(0, 1, true)
+            DisableControlAction(0, 2, true)
 
-            if state.isNuiFocused() then
-                DisableControlAction(0, 1, true)
-                DisableControlAction(0, 2, true)
-
-                if not hasTarget or options and IsDisabledControlJustPressed(0, 25) then
-                    state.setNuiFocus(false, false)
+            if optionsLocked then
+                if IsDisabledControlJustPressed(0, 25) then
+                    optionsLocked = false
+                    lockTime = 0
+                    lockedTargetCoords = nil
+                    lastEntity = -1
+                    SendNuiMessage('{"event": "unlockOptions"}')
                 end
             elseif hasTarget and IsDisabledControlJustPressed(0, mouseButton) then
-                state.setNuiFocus(true, true)
+                optionsLocked = true
+                lockTime = GetGameTimer()
+
+                lockedMaxDistance = 7
+                for _, v in pairs(options) do
+                    for i = 1, #v do
+                        local opt = v[i]
+                        if not opt.hide then
+                            local d = opt.distance or 7
+                            if d > lockedMaxDistance then lockedMaxDistance = d end
+                        end
+                    end
+                end
+                if nearbyZones then
+                    for i = 1, #nearbyZones do
+                        local zoneOpts = nearbyZones[i].options
+                        for j = 1, #zoneOpts do
+                            local opt = zoneOpts[j]
+                            if not opt.hide then
+                                local d = opt.distance or 7
+                                if d > lockedMaxDistance then lockedMaxDistance = d end
+                            end
+                        end
+                    end
+                end
+
+                lockedTargetCoords = currentTarget.coords
+
+                SendNuiMessage('{"event": "lockOptions"}')
             end
 
             Wait(0)
@@ -176,8 +237,109 @@ local function startTargeting()
             break
         end
 
+        if optionsLocked then
+            if menuChanged then
+                local playerCoords = GetEntityCoords(cache.ped)
+                local distance = lockedTargetCoords and #(playerCoords - lockedTargetCoords) or currentTarget.distance or 0
+
+                for k, v in pairs(options) do
+                    local dist = (k == '__global' or k == 'selfTarget') and 0 or distance
+                    for i = 1, #v do
+                        local option = v[i]
+                        option.hide = shouldHide(option, dist, lockedTargetCoords or currentTarget.coords, currentTarget.entity, currentTarget.entityType, currentTarget.entityModel)
+                    end
+                end
+
+                if nearbyZones then
+                    for i = 1, #nearbyZones do
+                        local zoneOpts = nearbyZones[i].options
+                        for j = 1, #zoneOpts do
+                            local option = zoneOpts[j]
+                            option.hide = shouldHide(option, distance, lockedTargetCoords or currentTarget.coords, currentTarget.entity, currentTarget.entityType, currentTarget.entityModel)
+                        end
+                    end
+                end
+
+                if currentMenu and options.__global[1]?.name ~= 'builtin:goback' then
+                    table.insert(options.__global, 1, {
+                        icon = 'fa-solid fa-circle-chevron-left',
+                        label = locale('go_back'),
+                        name = 'builtin:goback',
+                        menuName = currentMenu,
+                        openMenu = 'home'
+                    })
+                end
+
+                SendNuiMessage(json.encode({
+                    event = 'setTarget',
+                    options = options,
+                    zones = zones,
+                }, { sort_keys = true }))
+
+                menuChanged = false
+            end
+
+            if GetGameTimer() - lockTime < 500 then
+                Wait(50)
+                goto continue
+            end
+
+            if not lockedTargetCoords then
+                Wait(50)
+                goto continue
+            end
+
+            local playerCoords = GetEntityCoords(cache.ped)
+            local playerDistToTarget = #(playerCoords - lockedTargetCoords)
+
+            local hasAnyOptions = false
+            local allOptionsHidden = true
+
+            for _, v in pairs(options) do
+                for i = 1, #v do
+                    hasAnyOptions = true
+                    local opt = v[i]
+                    if playerDistToTarget <= (opt.distance or 7) then
+                        allOptionsHidden = false
+                        break
+                    end
+                end
+                if not allOptionsHidden then break end
+            end
+
+            if nearbyZones then
+                for i = 1, #nearbyZones do
+                    local zoneOpts = nearbyZones[i].options
+                    for j = 1, #zoneOpts do
+                        hasAnyOptions = true
+                        local opt = zoneOpts[j]
+                        if playerDistToTarget <= (opt.distance or 7) then
+                            allOptionsHidden = false
+                            break
+                        end
+                    end
+                    if not allOptionsHidden then break end
+                end
+            end
+
+            if hasAnyOptions and allOptionsHidden then
+                optionsLocked = false
+                lockTime = 0
+                lockedTargetCoords = nil
+                lastEntity = -1
+                SendNuiMessage('{"event": "unlockOptions"}')
+                SendNuiMessage('{"event": "leftTarget"}')
+                hasTarget = false
+                Wait(50)
+                goto continue
+            end
+
+            Wait(50)
+            goto continue
+        end
+
         local playerCoords = GetEntityCoords(cache.ped)
-        hit, entityHit, endCoords = lib.raycast.fromCamera(flag, 4, 20)
+        hit, entityHit, endCoords = utils.raycastFromCursor(flag, 20)
         distance = #(playerCoords - endCoords)
 
         if entityHit ~= 0 and entityHit ~= lastEntity then
@@ -187,7 +349,7 @@ local function startTargeting()
 
         if entityType == 0 then
             local _flag = flag == 511 and 26 or 511
-            local _hit, _entityHit, _endCoords = lib.raycast.fromCamera(_flag, 4, 20)
+            local _hit, _entityHit, _endCoords = utils.raycastFromCursor(_flag, 20)
             local _distance = #(playerCoords - _endCoords)
 
             if _distance < distance then
@@ -197,6 +359,19 @@ local function startTargeting()
                     local success, result = pcall(GetEntityType, entityHit)
                     entityType = success and result or 0
                 end
+            end
+        end
+
+        local isSelfTarget = false
+        if next(selfTargetOptions) then
+            local selfHit, selfEntity, selfCoords = utils.raycastFromCursorIncludeSelf(10)
+
+            if selfEntity == cache.ped then
+                entityHit = SELF_TARGET_ID
+                isSelfTarget = true
+                entityType = 1
+                endCoords = selfCoords
+                distance = #(playerCoords - selfCoords)
             end
         end
 
@@ -212,19 +387,28 @@ local function startTargeting()
                 entityHit = HasEntityClearLosToEntity(entityHit, cache.ped, 7) and entityHit or 0
             end
 
-            if lastEntity ~= entityHit and debug then
-                if lastEntity then
-                    SetEntityDrawOutline(lastEntity, false)
-                end
-
-                if entityType ~= 1 then
-                    SetEntityDrawOutline(entityHit, true)
-                end
-            end
-
             if entityHit > 0 then
                 local success, result = pcall(GetEntityModel, entityHit)
                 entityModel = success and result
+            end
+
+        end
+
+        if drawOutline then
+            local maxDist = api.getEntitySpecificTargetDistance(entityHit, entityModel)
+            if maxDist == 0 then maxDist = outlineDistance end
+            local shouldOutline = entityHit > 0 and entityType ~= 1 and distance <= maxDist and api.entityHasSpecificTargets(entityHit, entityModel)
+
+            if shouldOutline and outlinedEntity ~= entityHit then
+                if outlinedEntity then
+                    SetEntityDrawOutline(outlinedEntity, false)
+                end
+                SetEntityDrawOutlineColor(outlineColor[1], outlineColor[2], outlineColor[3], outlineColor[4])
+                SetEntityDrawOutline(entityHit, true)
+                outlinedEntity = entityHit
+            elseif not shouldOutline and outlinedEntity then
+                SetEntityDrawOutline(outlinedEntity, false)
+                outlinedEntity = nil
             end
         end
 
@@ -233,25 +417,28 @@ local function startTargeting()
 
             if entityChanged then options:wipe() end
 
-            if debug and lastEntity > 0 then SetEntityDrawOutline(lastEntity, false) end
-
             hasTarget = false
         end
 
-        if newOptions and entityModel and entityHit > 0 then
+        if newOptions and isSelfTarget then
+            options:setSelf()
+        elseif newOptions and entityModel and entityHit > 0 then
             options:set(entityHit, entityType, entityModel)
         end
 
         lastEntity = entityHit
-        currentTarget.entity = entityHit
+        currentTarget.entity = isSelfTarget and cache.ped or entityHit
         currentTarget.coords = endCoords
         currentTarget.distance = distance
+        currentTarget.isSelf = isSelfTarget
+        currentTarget.entityType = entityType
+        currentTarget.entityModel = entityModel
         local hidden = 0
         local totalOptions = 0
 
         for k, v in pairs(options) do
             local optionCount = #v
-            local dist = k == '__global' and 0 or distance
+            local dist = (k == '__global' or k == 'selfTarget') and 0 or distance
             totalOptions += optionCount
 
             for i = 1, optionCount do
@@ -331,10 +518,11 @@ local function startTargeting()
         end
 
         Wait(hit and 50 or 100)
+        ::continue::
     end
 
-    if lastEntity and debug then
-        SetEntityDrawOutline(lastEntity, false)
+    if drawOutline and outlinedEntity then
+        SetEntityDrawOutline(outlinedEntity, false)
     end
 
     state.setNuiFocus(false)
@@ -343,6 +531,7 @@ local function startTargeting()
     options:wipe()
 
     if nearbyZones then table.wipe(nearbyZones) end
+    lastStateChange = GetGameTimer()
 end
 
 do
@@ -356,6 +545,9 @@ do
 
     if toggleHotkey then
         function keybind:onPressed()
+            local now = GetGameTimer()
+            if now - lastStateChange < STATE_COOLDOWN then return end
+
             if state.isActive() then
                 return state.setActive(false)
             end
@@ -363,9 +555,19 @@ do
             return startTargeting()
         end
     else
-        keybind.onPressed = startTargeting
+        function keybind:onPressed()
+            startTargeting()
+            if state.isActive() then
+                targetingStartTime = GetGameTimer()
+            end
+        end
 
         function keybind:onReleased()
+            if not state.isActive() then return end
+
+            -- Grace period to prevent instant close from spurious releases
+            if GetGameTimer() - targetingStartTime < 200 then return end
+
             state.setActive(false)
         end
     end
@@ -411,6 +613,11 @@ RegisterNUICallback('select', function(data, cb)
     local option = zone and zone.options[data[2]] or options[data[1]][data[2]]
 
     if option then
+        local maxDistance = option.distance or 7
+        if currentTarget.distance and currentTarget.distance > maxDistance then
+            return
+        end
+
         if option.openMenu then
             local menuDepth = #menuHistory
 
@@ -429,8 +636,12 @@ RegisterNUICallback('select', function(data, cb)
             currentMenu = option.openMenu ~= 'home' and option.openMenu or nil
 
             options:wipe()
-        else
-            state.setNuiFocus(false)
+
+            if currentTarget.isSelf then
+                options:setSelf()
+            elseif currentTarget.entity and currentTarget.entity > 0 and currentTarget.entityModel then
+                options:set(currentTarget.entity, currentTarget.entityType, currentTarget.entityModel)
+            end
         end
 
         currentTarget.zone = zone?.id
@@ -450,7 +661,7 @@ RegisterNUICallback('select', function(data, cb)
         if option.menuName == 'home' then return end
     end
 
-    if not option?.openMenu and IsNuiFocused() then
+    if closeOnSelect and not option?.openMenu and IsNuiFocused() then
         state.setActive(false)
     end
 end)

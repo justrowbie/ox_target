@@ -1,6 +1,8 @@
 local state = {}
 
 local isActive = false
+local showVignette = GetConvarInt('ox_target:vignette', 1) == 1
+local ownsFocus = false
 
 ---@return boolean
 function state.isActive()
@@ -12,7 +14,19 @@ function state.setActive(value)
     isActive = value
 
     if value then
-        SendNuiMessage('{"event": "visible", "state": true}')
+        SendNuiMessage(json.encode({
+            event = 'visible',
+            state = true,
+            vignette = showVignette
+        }))
+        SetNuiFocus(true, true)
+        SetNuiFocusKeepInput(true)
+        ownsFocus = true
+    else
+        if ownsFocus then
+            SetNuiFocus(false, false)
+            ownsFocus = false
+        end
     end
 end
 
@@ -25,11 +39,16 @@ end
 
 ---@param value boolean
 function state.setNuiFocus(value, cursor)
-    if value then SetCursorLocation(0.5, 0.5) end
-
     nuiFocus = value
-    SetNuiFocus(value, cursor or false)
-    SetNuiFocusKeepInput(value)
+    if value then
+        SetNuiFocus(value, cursor or false)
+        SetNuiFocusKeepInput(value)
+        ownsFocus = true
+    elseif ownsFocus then
+        SetNuiFocus(false, false)
+        SetNuiFocusKeepInput(false)
+        ownsFocus = false
+    end
 end
 
 local isDisabled = false

@@ -1,8 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
 :root {
-  --themeColor: #22b8cf;
-  --darkColor: #5c5f66;
-  --textColor: #F8F9FA;
+  --themeColor: #141414;
+  --darkColor: #141414;
+  --textColor: #C9C9C9;
+  --lightColor: #C9C9C9;
 }
 
 body {
@@ -14,6 +16,28 @@ body {
   overflow: hidden;
 }
 
+#vignette {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 80% 70% at center,
+    transparent 30%,
+    rgba(20, 20, 20, 0.2) 55%,
+    rgba(20, 20, 20, 0.45) 75%,
+    rgba(20, 20, 20, 0.7) 100%
+  );
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+
+#vignette.active {
+  opacity: 1;
+}
+
 p {
   margin: 0;
 }
@@ -22,28 +46,28 @@ p {
   font-variation-settings: "FILL" 0, "wght" 300, "GRAD" 0, "opsz" 40;
 }
 
-#eye {
-  content: "\F33E";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 1.5vh;
-  fill: rgba(var(--themeColor), 0.2);
-}
-
-.eye-hover {
-  fill: rgba(var(--textColor), 0.2);
+html, body {
+  width: 100vw;
+  height: 100vh;
+  cursor: default;
 }
 
 #options-wrapper {
-  position: absolute;
-  top: calc(48%);
-  left: calc(51%);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+#options-wrapper.locked {
+  pointer-events: auto;
+  opacity: 1;
 }
 
 .option-container {
-  color: rgba(var(--textColor), 0.2);
+  color: var(--textColor);
   display: flex;
   flex-direction: row;
   justify-content: flex-start;
@@ -68,7 +92,7 @@ p {
 
 .option-container:hover {
   color: var(--textColor);
-  background: rgba(var(--themeColor), 0.2);
+  background: var(--darkColor);
   box-shadow: 0px 0px 10px 0px rgba(var(--lightColor), 0.2);
 }
 
@@ -89,19 +113,17 @@ p {
   transition: left 1.22s ease;
 }
 
-
 .option-icon {
   font-size: 12pt;
   line-height: 22pt;
   width: 14pt;
   margin: 5pt;
   color: var(--textColor);
-  
 }
 
 .option-label {
   font-weight: 500;
-  color: rgba(var(--textColor), 0.2);
+  color: var(--textColor);
 }
 
 @keyframes glow {
@@ -114,8 +136,4 @@ p {
   100% {
     filter: drop-shadow(0 0 5px rgba(var(--themeColor), 0.2)) brightness(1);
   }
-}
-
-#eyeSvg {
-  animation: glow 1.5s infinite;
 }
